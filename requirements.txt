@@ -1,0 +1,21 @@
+# Data handling
+pandas
+numpy
+polars
+pyarrow
+
+# Modelling
+scikit-learn
+xgboost
+shap
+
+# Visualisation
+matplotlib
+seaborn
+plotly
+
+# Notebooks and data download
+jupyterlab
+ipykernel
+kaggle
+tqdm
