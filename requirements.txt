@@ -19,3 +19,6 @@ jupyterlab
 ipykernel
 kaggle
 tqdm
+
+# Testing
+pytest
