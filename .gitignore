@@ -25,3 +25,8 @@ proposal/*.log
 proposal/*.out
 proposal/*.toc
 proposal/main.pdf
+
+# Packaging
+*.egg-info/
+build/
+dist/

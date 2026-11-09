@@ -1,0 +1,14 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agromaster"
+version = "0.1.0"
+description = "Seven-day ahead price-decline risk classification for AGMARKNET mandi prices"
+readme = "README.md"
+requires-python = ">=3.12"
+authors = [{ name = "Group 41, University of Ruhuna" }]
+
+[tool.setuptools.packages.find]
+where = ["src"]
