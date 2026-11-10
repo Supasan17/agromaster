@@ -8,7 +8,7 @@ DATA_PROCESSED = ROOT / "data" / "processed"
 MODELS = ROOT / "models"
 FIGURES = ROOT / "reports" / "figures"
 
-KAGGLE_DATASET = None  # TODO: set to "<owner>/<slug>" of the AGMARKNET dataset
+KAGGLE_DATASET = "khandelwalmanas/daily-commodity-prices-india"
 
 SEED = 42
 
