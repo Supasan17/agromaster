@@ -51,16 +51,22 @@ def normalise_columns(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def infer_date_format(values: pd.Series, formats: list[str] | None = None) -> str | None:
-    """Return the first format in ``formats`` that parses every non-null value."""
+    """Return the format in ``formats`` that parses the most non-null values.
+
+    Ties go to the earlier format, so day-first formats win over month-first
+    ones. A few malformed values therefore do not push the whole chunk onto a
+    wrong format. Returns ``None`` if no format parses any value.
+    """
     sample = values.dropna().astype(str).str.strip()
     sample = sample[sample != ""].head(1000)
     if sample.empty:
         return None
+    best_fmt, best_count = None, 0
     for fmt in formats or config.DATE_FORMATS:
-        parsed = pd.to_datetime(sample, format=fmt, errors="coerce")
-        if parsed.notna().all():
-            return fmt
-    return None
+        count = int(pd.to_datetime(sample, format=fmt, errors="coerce").notna().sum())
+        if count > best_count:
+            best_fmt, best_count = fmt, count
+    return best_fmt
 
 
 def parse_dates(values: pd.Series, formats: list[str] | None = None) -> pd.Series:
@@ -156,7 +162,8 @@ def convert_csv_to_parquet(
     finally:
         if writer is not None:
             writer.close()
-    if writer is None:
+    if rows == 0:
+        tmp.unlink(missing_ok=True)
         raise ValueError(f"{src} has no data rows")
     tmp.replace(dest)
     print(f"Wrote {rows:,} rows to {dest}")
