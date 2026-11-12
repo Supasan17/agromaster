@@ -1,7 +1,8 @@
 """Record-level cleaning of the interim AGMARKNET price table.
 
-Follows the preprocessing list in the proposal: duplicate records and records
-with missing or non-positive prices are removed before any aggregation,
+Follows the preprocessing list in the proposal: duplicate records, records
+with missing or non-positive prices, and records whose prices break the
+minimum <= modal <= maximum ordering are removed before any aggregation,
 alignment or feature engineering. Each step is a small function that takes
 and returns a pandas DataFrame and leaves its input unchanged.
 """
@@ -24,6 +25,23 @@ def drop_invalid_prices(
     return df.loc[valid].reset_index(drop=True)
 
 
+def drop_inconsistent_prices(
+    df: pd.DataFrame, price_cols: list[str] | None = None
+) -> tuple[pd.DataFrame, int]:
+    """Drop records that violate min <= modal <= max.
+
+    ``price_cols`` is ordered as (minimum, maximum, modal), matching
+    ``config.PRICE_COLUMNS``. Records with a missing price fail the check and
+    are dropped too. Returns the kept records and how many were dropped.
+    """
+    min_col, max_col, modal_col = price_cols or config.PRICE_COLUMNS
+    consistent = (df[min_col] <= df[modal_col]) & (df[modal_col] <= df[max_col])
+    n_dropped = int((~consistent).sum())
+    return df.loc[consistent].reset_index(drop=True), n_dropped
+
+
 def filter_records(df: pd.DataFrame) -> pd.DataFrame:
-    """Apply the record filters in order: duplicates, then invalid prices."""
-    return drop_invalid_prices(drop_duplicates(df))
+    """Apply the record filters in order: duplicates, invalid prices, then
+    price consistency."""
+    kept, _ = drop_inconsistent_prices(drop_invalid_prices(drop_duplicates(df)))
+    return kept
