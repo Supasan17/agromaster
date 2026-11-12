@@ -29,6 +29,25 @@ DATE_COLUMN = "Arrival_Date"
 PRICE_COLUMNS = ["Min_Price", "Max_Price", "Modal_Price"]
 CATEGORICAL_COLUMNS = SERIES_KEYS
 
+# Name standardisation: values in these columns are trimmed, have repeated
+# spaces collapsed and are case-folded; known spelling variants (keyed by the
+# case-folded form) are then mapped to one canonical name.
+NAME_COLUMNS = SERIES_KEYS
+NAME_ALIASES: dict[str, dict[str, str]] = {
+    "State": {
+        "chattisgarh": "Chhattisgarh",
+        "orissa": "Odisha",
+        "pondicherry": "Puducherry",
+        "uttrakhand": "Uttarakhand",
+        "jammu & kashmir": "Jammu and Kashmir",
+        "nct of delhi": "Delhi",
+    },
+    "Commodity": {
+        "bhindi": "Bhindi(Ladies Finger)",
+        "ladies finger": "Bhindi(Ladies Finger)",
+    },
+}
+
 # CSV to Parquet conversion
 CSV_CHUNK_ROWS = 1_000_000
 DATE_FORMATS = ["%d/%m/%Y", "%Y-%m-%d", "%d-%m-%Y", "%d/%m/%y"]
