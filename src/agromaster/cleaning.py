@@ -4,7 +4,9 @@ Follows the preprocessing list in the proposal: duplicate records, records
 with missing or non-positive prices, and records whose prices break the
 minimum <= modal <= maximum ordering are removed before any aggregation,
 alignment or feature engineering. Category names are then standardised so
-that the same product or place is not split across spellings. Each step is a
+that the same product or place is not split across spellings, and records
+of one series reported more than once on the same date are merged with the
+median of each price field. Each step is a
 small function that takes and returns a pandas DataFrame and leaves its input
 unchanged.
 """
@@ -88,3 +90,29 @@ def standardise_names(
                 lambda v: standardise_name(str(v), col_aliases) if pd.notna(v) else v
             )
     return out
+
+
+def aggregate_same_day(
+    df: pd.DataFrame,
+    keys: list[str] | None = None,
+    date_col: str | None = None,
+    price_cols: list[str] | None = None,
+) -> pd.DataFrame:
+    """Merge records of one series on one date into a single record.
+
+    Records are grouped by the series ``keys`` present in ``df`` (default
+    ``config.SERIES_KEYS``) and the date column, and each price field is
+    replaced by its median within the group. Missing key values form their
+    own group rather than being dropped. Because the median keeps order, rows
+    that already satisfy min <= modal <= max still do after aggregation.
+    Columns other than the keys, the date and the prices are dropped. The
+    result is sorted by series and date.
+    """
+    date = date_col or config.DATE_COLUMN
+    prices = price_cols or config.PRICE_COLUMNS
+    group_cols = [k for k in (keys or config.SERIES_KEYS) if k in df.columns] + [date]
+    return (
+        df.groupby(group_cols, observed=True, dropna=False, sort=True)[prices]
+        .median()
+        .reset_index()
+    )
