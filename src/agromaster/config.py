@@ -20,6 +20,10 @@ MEDIUM_RISK_QUANTILE = 0.30
 
 # Preprocessing
 MAX_FFILL_DAYS = 3
+# Calendar alignment keeps the observed prices (used for targets) unfilled and
+# adds forward-filled copies, named with this suffix, for use as predictors.
+FILLED_SUFFIX = "_Filled"
+OBSERVED_COLUMN = "Is_Observed"
 
 # Series identity (used for grouping, not as model inputs)
 SERIES_KEYS = ["State", "District", "Market", "Commodity", "Variety", "Grade"]

@@ -6,7 +6,8 @@ minimum <= modal <= maximum ordering are removed before any aggregation,
 alignment or feature engineering. Category names are then standardised so
 that the same product or place is not split across spellings, and records
 of one series reported more than once on the same date are merged with the
-median of each price field. Each step is a
+median of each price field, and each series is aligned to consecutive
+calendar days with a short, predictor-only forward-fill. Each step is a
 small function that takes and returns a pandas DataFrame and leaves its input
 unchanged.
 """
@@ -116,3 +117,71 @@ def aggregate_same_day(
         .median()
         .reset_index()
     )
+
+
+def align_calendar_days(
+    df: pd.DataFrame,
+    keys: list[str] | None = None,
+    date_col: str | None = None,
+    price_cols: list[str] | None = None,
+    max_ffill_days: int | None = None,
+) -> pd.DataFrame:
+    """Reindex each series to consecutive calendar days.
+
+    Expects one record per series and date (see ``aggregate_same_day``). Each
+    series, identified by the ``keys`` present in ``df`` (missing key values
+    form their own series), gets one row for every calendar day from its
+    first to its last observed date. The original price columns keep only
+    observed values, so days without a report stay missing and future target
+    prices are never filled. For every price column a predictor copy named
+    ``<col>`` + ``config.FILLED_SUFFIX`` carries the last observed value
+    forward for at most ``max_ffill_days`` days (default
+    ``config.MAX_FFILL_DAYS``); days further from the last report stay
+    missing. ``config.OBSERVED_COLUMN`` flags days with an actual report. The
+    result is sorted by series and date.
+    """
+    date = date_col or config.DATE_COLUMN
+    prices = price_cols or config.PRICE_COLUMNS
+    limit = config.MAX_FFILL_DAYS if max_ffill_days is None else max_ffill_days
+    key_cols = [k for k in (keys or config.SERIES_KEYS) if k in df.columns]
+    filled_cols = [c + config.FILLED_SUFFIX for c in prices]
+    if df.empty:
+        out = df[key_cols + [date] + prices].copy()
+        out[config.OBSERVED_COLUMN] = pd.Series(dtype=bool)
+        for col, filled in zip(prices, filled_cols):
+            out[filled] = out[col]
+        return out.reset_index(drop=True)
+
+    obs = df[key_cols + [date] + prices].copy()
+    obs[date] = pd.to_datetime(obs[date]).dt.normalize()
+    if key_cols:
+        obs["_series"] = obs.groupby(
+            key_cols, observed=True, dropna=False, sort=True
+        ).ngroup()
+    else:
+        obs["_series"] = 0
+
+    spans = obs.groupby("_series")[date].agg(["min", "max"])
+    lengths = (spans["max"] - spans["min"]).dt.days.to_numpy() + 1
+    series_ids = spans.index.repeat(lengths)
+    day_offsets = pd.Series(1, index=series_ids).groupby(level=0).cumsum() - 1
+    grid = pd.DataFrame(
+        {
+            "_series": series_ids,
+            date: spans["min"].reindex(series_ids).to_numpy()
+            + pd.to_timedelta(day_offsets.to_numpy(), unit="D"),
+        }
+    )
+
+    out = grid.merge(obs[["_series", date] + prices], on=["_series", date], how="left")
+    out[config.OBSERVED_COLUMN] = out[prices].notna().any(axis=1)
+    filled = out.groupby("_series", sort=False)[prices].ffill(limit=limit)
+    for col, filled_col in zip(prices, filled_cols):
+        out[filled_col] = filled[col]
+
+    if key_cols:
+        series_keys = obs.drop_duplicates("_series").set_index("_series")[key_cols]
+        out = out.join(series_keys, on="_series")
+    out = out.sort_values(["_series", date], kind="stable")
+    ordered = key_cols + [date] + prices + [config.OBSERVED_COLUMN] + filled_cols
+    return out[ordered].reset_index(drop=True)
