@@ -55,6 +55,22 @@ NAME_ALIASES: dict[str, dict[str, str]] = {
 # Feature names (proposal feature table)
 SPREAD_COLUMN = "Price_Spread"
 SPREAD_RATIO_COLUMN = "Spread_Ratio"
+MONTH_COLUMN = "Month"
+YEAR_COLUMN = "Year"
+DAY_OF_YEAR_COLUMN = "Day_of_Year"
+SEASON_COLUMN = "Season"
+
+# Month-to-season mapping for India, following the four seasons used by the
+# India Meteorological Department (IMD): Winter (January-February), Summer or
+# pre-monsoon (March-May), Monsoon or south-west monsoon (June-September) and
+# Post-monsoon (October-December).
+SEASONS = ["Winter", "Summer", "Monsoon", "Post-monsoon"]
+SEASON_BY_MONTH: dict[int, str] = {
+    1: "Winter", 2: "Winter",
+    3: "Summer", 4: "Summer", 5: "Summer",
+    6: "Monsoon", 7: "Monsoon", 8: "Monsoon", 9: "Monsoon",
+    10: "Post-monsoon", 11: "Post-monsoon", 12: "Post-monsoon",
+}
 
 # CSV to Parquet conversion
 CSV_CHUNK_ROWS = 1_000_000

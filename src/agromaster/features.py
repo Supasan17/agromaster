@@ -47,3 +47,25 @@ def add_price_spread(
         "float32"
     )
     return out
+
+
+def add_calendar_features(
+    df: pd.DataFrame, date_col: str = config.DATE_COLUMN
+) -> pd.DataFrame:
+    """Add month, year, day of year and season (features 15 to 18).
+
+    The values come from the prediction date in ``date_col`` only.
+    ``config.SEASON_COLUMN`` follows the documented IMD mapping in
+    ``config.SEASON_BY_MONTH`` and is a categorical with the categories of
+    ``config.SEASONS``, so every frame gets the same categories in the same
+    order. All four features are missing where the date is missing.
+    """
+    out = df.copy()
+    dates = pd.to_datetime(out[date_col])
+    out[config.MONTH_COLUMN] = dates.dt.month.astype("Int8")
+    out[config.YEAR_COLUMN] = dates.dt.year.astype("Int16")
+    out[config.DAY_OF_YEAR_COLUMN] = dates.dt.dayofyear.astype("Int16")
+    out[config.SEASON_COLUMN] = pd.Categorical(
+        dates.dt.month.map(config.SEASON_BY_MONTH), categories=config.SEASONS
+    )
+    return out
