@@ -52,6 +52,10 @@ NAME_ALIASES: dict[str, dict[str, str]] = {
     },
 }
 
+# Feature names (proposal feature table)
+SPREAD_COLUMN = "Price_Spread"
+SPREAD_RATIO_COLUMN = "Spread_Ratio"
+
 # CSV to Parquet conversion
 CSV_CHUNK_ROWS = 1_000_000
 DATE_FORMATS = ["%d/%m/%Y", "%Y-%m-%d", "%d-%m-%Y", "%d/%m/%y"]
