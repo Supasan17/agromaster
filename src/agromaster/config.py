@@ -65,6 +65,22 @@ SEASON_COLUMN = "Season"
 LAG_DAYS = [1, 7, 30]
 LAG_COLUMN_TEMPLATE = "Modal_Lag_{days}"
 
+# Rolling-window features (features 11 to 14). Windows are calendar days
+# ending on (and including) the prediction date, within the same series, so
+# they use no information after that date.
+MA_WINDOWS = [7, 30]
+MA_COLUMN_TEMPLATE = "MA_{days}"
+VOLATILITY_WINDOW = 30
+VOLATILITY_COLUMN = "Volatility_30"
+# Price momentum is the percentage change (in percent) of the modal price
+# over this many calendar days.
+MOMENTUM_DAYS = 7
+MOMENTUM_COLUMN = "Price_Momentum"
+# Minimum number of observed prices in a window for the statistic to be
+# reported (a standard deviation needs at least two).
+MA_MIN_PERIODS = 1
+VOLATILITY_MIN_PERIODS = 2
+
 # Month-to-season mapping for India, following the four seasons used by the
 # India Meteorological Department (IMD): Winter (January-February), Summer or
 # pre-monsoon (March-May), Monsoon or south-west monsoon (June-September) and
