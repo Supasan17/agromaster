@@ -69,3 +69,56 @@ def add_calendar_features(
         dates.dt.month.map(config.SEASON_BY_MONTH), categories=config.SEASONS
     )
     return out
+
+
+def lag_column(days: int) -> str:
+    """Return the name of the modal price lag feature for ``days``."""
+    return config.LAG_COLUMN_TEMPLATE.format(days=days)
+
+
+def add_lag_features(
+    df: pd.DataFrame,
+    lags: list[int] | None = None,
+    keys: list[str] | None = None,
+    date_col: str = config.DATE_COLUMN,
+    price_col: str | None = None,
+) -> pd.DataFrame:
+    """Add modal price lags in calendar days (features 8 to 10).
+
+    For each row, ``lag_column(n)`` holds the value of ``price_col`` on the
+    date exactly ``n`` calendar days earlier in the same series, for every
+    ``n`` in ``lags`` (default ``config.LAG_DAYS``). Series are identified by
+    the ``keys`` present in ``df`` (default ``config.SERIES_KEYS``; missing
+    key values form their own series). Lags are matched on dates, not row
+    positions, so a gap in a series gives a missing lag instead of an older
+    price, and the result does not depend on row order. ``price_col``
+    defaults to the modal column of ``predictor_price_columns(df)``. Expects
+    one row per series and date; if a date repeats, its first row is used as
+    the lagged value. Rows keep their original order and index.
+    """
+    lag_days = config.LAG_DAYS if lags is None else lags
+    source = price_col or predictor_price_columns(df)[2]
+    key_cols = [k for k in (keys or config.SERIES_KEYS) if k in df.columns]
+    out = df.copy()
+    if df.empty:
+        for days in lag_days:
+            out[lag_column(days)] = pd.Series(dtype="float32")
+        return out
+
+    if key_cols:
+        series = df.groupby(key_cols, observed=True, dropna=False, sort=False).ngroup()
+    else:
+        series = pd.Series(0, index=df.index)
+    dates = pd.to_datetime(df[date_col]).dt.normalize()
+    lookup = pd.Series(
+        df[source].to_numpy(dtype="float32"),
+        index=pd.MultiIndex.from_arrays([series.to_numpy(), dates.to_numpy()]),
+    )
+    lookup = lookup[~lookup.index.duplicated(keep="first")]
+
+    for days in lag_days:
+        past = pd.MultiIndex.from_arrays(
+            [series.to_numpy(), (dates - pd.Timedelta(days=days)).to_numpy()]
+        )
+        out[lag_column(days)] = lookup.reindex(past).to_numpy(dtype="float32")
+    return out

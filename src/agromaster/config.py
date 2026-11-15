@@ -60,6 +60,11 @@ YEAR_COLUMN = "Year"
 DAY_OF_YEAR_COLUMN = "Day_of_Year"
 SEASON_COLUMN = "Season"
 
+# Lag features (features 8 to 10): the modal price this many calendar days
+# before the prediction date, within the same series.
+LAG_DAYS = [1, 7, 30]
+LAG_COLUMN_TEMPLATE = "Modal_Lag_{days}"
+
 # Month-to-season mapping for India, following the four seasons used by the
 # India Meteorological Department (IMD): Winter (January-February), Summer or
 # pre-monsoon (March-May), Monsoon or south-west monsoon (June-September) and
