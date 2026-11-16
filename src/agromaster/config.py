@@ -25,6 +25,14 @@ HISTORY_MIN_PERIODS = 1
 HISTORY_MEAN_COLUMN = "History_Mean_90"
 FUTURE_PRICE_COLUMN = "Modal_Future_7"
 RATIO_COLUMN = "Future_Ratio"
+# Risk labels are assigned per commodity from thresholds fitted on a training
+# frame: ratio <= HIGH_RISK_QUANTILE threshold is High, ratio <=
+# MEDIUM_RISK_QUANTILE threshold is Medium, anything above is Low.
+COMMODITY_COLUMN = "Commodity"
+RISK_LABELS = ["Low", "Medium", "High"]
+LABEL_COLUMN = "Risk_Label"
+HIGH_THRESHOLD_COLUMN = "High_Threshold"
+MEDIUM_THRESHOLD_COLUMN = "Medium_Threshold"
 
 # Preprocessing
 MAX_FFILL_DAYS = 3

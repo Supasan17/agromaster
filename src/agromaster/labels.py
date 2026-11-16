@@ -101,3 +101,79 @@ def add_future_ratio(
     out[config.HISTORY_MEAN_COLUMN] = history
     out[config.RATIO_COLUMN] = (future / safe_history).astype("float32")
     return out
+
+
+def fit_risk_thresholds(
+    train: pd.DataFrame,
+    group_col: str = config.COMMODITY_COLUMN,
+    ratio_col: str = config.RATIO_COLUMN,
+    high_quantile: float = config.HIGH_RISK_QUANTILE,
+    medium_quantile: float = config.MEDIUM_RISK_QUANTILE,
+) -> pd.DataFrame:
+    """Fit commodity-specific risk thresholds on a training frame.
+
+    For each value of ``group_col`` the High threshold is the
+    ``high_quantile`` and the Medium threshold the ``medium_quantile`` of
+    the observed (non-missing, finite) ratios in ``train``. Groups without
+    any observed ratio get no thresholds. Returns one row per group with
+    columns ``group_col``, ``config.HIGH_THRESHOLD_COLUMN`` and
+    ``config.MEDIUM_THRESHOLD_COLUMN``, sorted by group.
+
+    The thresholds must be fitted on the training part of a fold only and
+    then passed unchanged to :func:`apply_risk_thresholds` for the
+    validation or test part.
+    """
+    if not 0 < high_quantile < medium_quantile < 1:
+        raise ValueError(
+            "Quantiles must satisfy 0 < high_quantile < medium_quantile < 1, "
+            f"got {high_quantile} and {medium_quantile}"
+        )
+    ratios = pd.DataFrame(
+        {
+            group_col: train[group_col].astype("object").to_numpy(),
+            "_ratio": train[ratio_col].to_numpy(dtype="float64"),
+        }
+    )
+    ratios = ratios[np.isfinite(ratios["_ratio"]) & ratios[group_col].notna()]
+    grouped = ratios.groupby(group_col, sort=True)["_ratio"]
+    thresholds = pd.DataFrame(
+        {
+            config.HIGH_THRESHOLD_COLUMN: grouped.quantile(high_quantile),
+            config.MEDIUM_THRESHOLD_COLUMN: grouped.quantile(medium_quantile),
+        }
+    )
+    return thresholds.rename_axis(group_col).reset_index()
+
+
+def apply_risk_thresholds(
+    df: pd.DataFrame,
+    thresholds: pd.DataFrame,
+    group_col: str = config.COMMODITY_COLUMN,
+    ratio_col: str = config.RATIO_COLUMN,
+) -> pd.DataFrame:
+    """Add the three-class risk label using previously fitted thresholds.
+
+    ``thresholds`` is the output of :func:`fit_risk_thresholds` and is used
+    unchanged. A ratio at or below its commodity's High threshold is labelled
+    High, at or below the Medium threshold Medium, and above it Low. The
+    label (``config.LABEL_COLUMN``, an ordered categorical over
+    ``config.RISK_LABELS``) is missing when the ratio is missing or the
+    commodity has no fitted thresholds. Rows keep their original order and
+    index.
+    """
+    out = df.copy()
+    lookup = thresholds.set_index(group_col)
+    groups = df[group_col].astype("object")
+    high = groups.map(lookup[config.HIGH_THRESHOLD_COLUMN]).to_numpy(dtype="float64")
+    medium = groups.map(lookup[config.MEDIUM_THRESHOLD_COLUMN]).to_numpy(dtype="float64")
+    ratio = df[ratio_col].to_numpy(dtype="float64")
+    known = np.isfinite(ratio) & np.isfinite(high) & np.isfinite(medium)
+    low_label, medium_label, high_label = config.RISK_LABELS
+    labels = np.where(
+        ratio <= high, high_label, np.where(ratio <= medium, medium_label, low_label)
+    ).astype(object)
+    labels[~known] = None
+    out[config.LABEL_COLUMN] = pd.Categorical(
+        labels, categories=config.RISK_LABELS, ordered=True
+    )
+    return out
