@@ -17,6 +17,14 @@ HORIZON_DAYS = 7
 HISTORY_DAYS = 90
 HIGH_RISK_QUANTILE = 0.10
 MEDIUM_RISK_QUANTILE = 0.30
+# The label ratio is the observed modal price HORIZON_DAYS calendar days after
+# the prediction date t divided by the mean observed modal price over the
+# HISTORY_DAYS calendar days before t (t itself excluded). The history mean
+# needs at least this many observed prices.
+HISTORY_MIN_PERIODS = 1
+HISTORY_MEAN_COLUMN = "History_Mean_90"
+FUTURE_PRICE_COLUMN = "Modal_Future_7"
+RATIO_COLUMN = "Future_Ratio"
 
 # Preprocessing
 MAX_FFILL_DAYS = 3
