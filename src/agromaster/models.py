@@ -11,9 +11,10 @@ only and then applied unchanged to validation or test data:
   features (unseen categories become all zeros) and standardised numerical
   features, with missing values imputed by the training median.
 
-Two reference baselines need no encoder: a majority-class predictor and a
+Three baselines give reference points: a majority-class predictor, a
 risk-persistence predictor that applies the training-fitted label thresholds
-to the current price-to-history ratio.
+to the current price-to-history ratio, and a regularised multinomial logistic
+regression on the linear encoder.
 
 Encoders are scikit-learn ``ColumnTransformer`` objects whose output is a
 pandas DataFrame; :func:`encode` applies a fitted encoder and leaves its input
@@ -24,6 +25,7 @@ import pandas as pd
 from sklearn.compose import ColumnTransformer
 from sklearn.dummy import DummyClassifier
 from sklearn.impute import SimpleImputer
+from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import (
     FunctionTransformer,
@@ -250,3 +252,53 @@ def predict_risk_persistence(
         current, thresholds, ratio_col=config.CURRENT_RATIO_COLUMN
     )
     return labelled[config.LABEL_COLUMN]
+
+
+def _labelled(
+    train: pd.DataFrame, label_col: str
+) -> tuple[pd.DataFrame, np.ndarray]:
+    """Return the labelled rows of ``train`` and their labels as objects."""
+    mask = train[label_col].notna().to_numpy()
+    if not mask.any():
+        raise ValueError("Cannot fit a model without labelled rows")
+    rows = train[mask]
+    return rows, rows[label_col].astype("object").to_numpy()
+
+
+def fit_logistic_baseline(
+    train: pd.DataFrame,
+    label_col: str = config.LABEL_COLUMN,
+    c: float = config.LOGREG_C,
+    class_weight: str | None = config.CLASS_WEIGHT,
+) -> Pipeline:
+    """Fit the regularised multinomial logistic regression baseline.
+
+    The model is a pipeline of the linear encoder (one-hot categories,
+    median-imputed and standardised numbers) and an L2-regularised
+    multinomial ``LogisticRegression`` with inverse strength ``c``. Both
+    steps, and the class weights, are fitted on the labelled rows of
+    ``train`` only, so the pipeline can be applied unchanged to another
+    frame with :func:`predict_logistic_baseline`.
+    """
+    rows, labels = _labelled(train, label_col)
+    numerical, categorical = feature_columns(rows)
+    model = Pipeline(
+        [
+            ("encode", make_linear_encoder(numerical, categorical)),
+            (
+                "classify",
+                LogisticRegression(
+                    C=c,
+                    class_weight=class_weight,
+                    max_iter=config.LOGREG_MAX_ITER,
+                    random_state=config.SEED,
+                ),
+            ),
+        ]
+    )
+    return model.fit(rows, labels)
+
+
+def predict_logistic_baseline(model: Pipeline, df: pd.DataFrame) -> pd.Series:
+    """Predict the risk label for every row of ``df`` with a fitted baseline."""
+    return _as_labels(model.predict(df), df.index)

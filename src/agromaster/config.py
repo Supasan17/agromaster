@@ -144,3 +144,9 @@ MISSING_CATEGORY = "__missing__"
 # Risk-persistence baseline: the current modal price at the prediction date
 # divided by the same HISTORY_DAYS history mean used for the label.
 CURRENT_RATIO_COLUMN = "Current_Ratio"
+
+# Logistic regression baseline: L2-regularised multinomial model with
+# balanced class weights, fitted on the one-hot and scaled inputs.
+LOGREG_C = 1.0
+LOGREG_MAX_ITER = 1000
+CLASS_WEIGHT = "balanced"
