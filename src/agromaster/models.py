@@ -11,6 +11,10 @@ only and then applied unchanged to validation or test data:
   features (unseen categories become all zeros) and standardised numerical
   features, with missing values imputed by the training median.
 
+Two reference baselines need no encoder: a majority-class predictor and a
+risk-persistence predictor that applies the training-fitted label thresholds
+to the current price-to-history ratio.
+
 Encoders are scikit-learn ``ColumnTransformer`` objects whose output is a
 pandas DataFrame; :func:`encode` applies a fitted encoder and leaves its input
 unchanged.
@@ -18,6 +22,7 @@ unchanged.
 import numpy as np
 import pandas as pd
 from sklearn.compose import ColumnTransformer
+from sklearn.dummy import DummyClassifier
 from sklearn.impute import SimpleImputer
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import (
@@ -29,6 +34,7 @@ from sklearn.preprocessing import (
 
 from agromaster import config
 from agromaster.features import predictor_price_columns
+from agromaster.labels import apply_risk_thresholds
 
 ENCODER_KINDS = ("tree", "linear")
 
@@ -160,3 +166,87 @@ def encode(encoder: ColumnTransformer, df: pd.DataFrame) -> pd.DataFrame:
     encoded = encoder.transform(df)
     encoded.index = df.index
     return encoded
+
+
+def _as_labels(values: np.ndarray, index: pd.Index) -> pd.Series:
+    """Wrap predicted labels as an ordered categorical over the risk labels."""
+    return pd.Series(
+        pd.Categorical(values, categories=config.RISK_LABELS, ordered=True),
+        index=index,
+        name=config.LABEL_COLUMN,
+    )
+
+
+def fit_majority_baseline(
+    train: pd.DataFrame, label_col: str = config.LABEL_COLUMN
+) -> DummyClassifier:
+    """Fit the majority-class baseline on the labelled rows of ``train``.
+
+    The model always predicts the most frequent label among the training
+    rows whose label is not missing. Raises ``ValueError`` when no row is
+    labelled.
+    """
+    labels = train[label_col].dropna().astype("object")
+    if labels.empty:
+        raise ValueError("Cannot fit the majority baseline without labelled rows")
+    model = DummyClassifier(strategy="most_frequent")
+    return model.fit(np.zeros((len(labels), 1)), labels.to_numpy())
+
+
+def predict_majority_baseline(
+    model: DummyClassifier, df: pd.DataFrame
+) -> pd.Series:
+    """Predict the majority-class label for every row of ``df``."""
+    values = model.predict(np.zeros((len(df), 1)))
+    return _as_labels(values, df.index)
+
+
+def add_current_ratio(
+    df: pd.DataFrame,
+    price_col: str | None = None,
+    history_col: str = config.HISTORY_MEAN_COLUMN,
+) -> pd.DataFrame:
+    """Add the current price-to-history ratio used by the persistence baseline.
+
+    ``config.CURRENT_RATIO_COLUMN`` is the modal price on the prediction date
+    divided by ``history_col`` (the mean modal price over the
+    ``config.HISTORY_DAYS`` days before that date, as added by
+    :func:`agromaster.labels.add_future_ratio`). ``price_col`` defaults to
+    the modal predictor price (the forward-filled copy when present), so the
+    ratio uses only information available on the prediction date. It is
+    missing where either input is missing or the history mean is not
+    positive.
+    """
+    if history_col not in df.columns:
+        raise KeyError(
+            f"Column {history_col!r} is missing; add it with "
+            "agromaster.labels.add_future_ratio first"
+        )
+    modal_col = price_col or predictor_price_columns(df)[2]
+    out = df.copy()
+    price = out[modal_col].to_numpy(dtype="float64")
+    history = out[history_col].to_numpy(dtype="float64")
+    safe_history = np.where(history > 0, history, np.nan)
+    out[config.CURRENT_RATIO_COLUMN] = (price / safe_history).astype("float32")
+    return out
+
+
+def predict_risk_persistence(
+    df: pd.DataFrame,
+    thresholds: pd.DataFrame,
+    price_col: str | None = None,
+    history_col: str = config.HISTORY_MEAN_COLUMN,
+) -> pd.Series:
+    """Predict the risk label seven days ahead by persisting the current risk.
+
+    The current ratio from :func:`add_current_ratio` is labelled with the
+    training-fitted commodity ``thresholds`` (from
+    :func:`agromaster.labels.fit_risk_thresholds`, used unchanged), and that
+    class is the prediction. The prediction is missing where the current
+    ratio is missing or the commodity has no thresholds.
+    """
+    current = add_current_ratio(df, price_col, history_col)
+    labelled = apply_risk_thresholds(
+        current, thresholds, ratio_col=config.CURRENT_RATIO_COLUMN
+    )
+    return labelled[config.LABEL_COLUMN]

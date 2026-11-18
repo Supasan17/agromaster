@@ -140,3 +140,7 @@ CATEGORICAL_FEATURES = [COMMODITY_COLUMN, "State", SEASON_COLUMN]
 UNKNOWN_CATEGORY_CODE = -1
 # Value used to fill missing categories before one-hot encoding.
 MISSING_CATEGORY = "__missing__"
+
+# Risk-persistence baseline: the current modal price at the prediction date
+# divided by the same HISTORY_DAYS history mean used for the label.
+CURRENT_RATIO_COLUMN = "Current_Ratio"
