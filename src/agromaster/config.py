@@ -118,3 +118,25 @@ INTERIM_PARQUET = DATA_INTERIM / "prices.parquet"
 DEV_END = "2023-12-31"
 TEST_START = "2024-01-01"
 N_CV_FOLDS = 5
+
+# Model inputs (proposal feature table). Price features are named after the
+# observed columns; when the forward-filled predictor copies are present the
+# models use those instead (see agromaster.models.feature_columns).
+PRICE_FEATURES = list(PRICE_COLUMNS)
+NUMERICAL_FEATURES = [
+    *PRICE_FEATURES,
+    SPREAD_COLUMN,
+    SPREAD_RATIO_COLUMN,
+    *[LAG_COLUMN_TEMPLATE.format(days=d) for d in LAG_DAYS],
+    *[MA_COLUMN_TEMPLATE.format(days=d) for d in MA_WINDOWS],
+    VOLATILITY_COLUMN,
+    MOMENTUM_COLUMN,
+    MONTH_COLUMN,
+    YEAR_COLUMN,
+    DAY_OF_YEAR_COLUMN,
+]
+CATEGORICAL_FEATURES = [COMMODITY_COLUMN, "State", SEASON_COLUMN]
+# Ordinal code given to categories not seen (or missing) in the training fold.
+UNKNOWN_CATEGORY_CODE = -1
+# Value used to fill missing categories before one-hot encoding.
+MISSING_CATEGORY = "__missing__"
