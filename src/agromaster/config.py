@@ -150,3 +150,11 @@ CURRENT_RATIO_COLUMN = "Current_Ratio"
 LOGREG_C = 1.0
 LOGREG_MAX_ITER = 1000
 CLASS_WEIGHT = "balanced"
+
+# Random Forest: starting hyperparameters (number of trees, maximum depth and
+# minimum leaf size are tuned later with the chronological CV folds). Balanced
+# class weights handle the rarity of the High risk class.
+RF_N_ESTIMATORS = 300
+RF_MAX_DEPTH: int | None = 20
+RF_MIN_SAMPLES_LEAF = 5
+RF_N_JOBS = -1

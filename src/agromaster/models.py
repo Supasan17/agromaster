@@ -16,6 +16,9 @@ risk-persistence predictor that applies the training-fitted label thresholds
 to the current price-to-history ratio, and a regularised multinomial logistic
 regression on the linear encoder.
 
+The first main model is a Random Forest on the tree encoder, with balanced
+class weights fitted on the training rows only.
+
 Encoders are scikit-learn ``ColumnTransformer`` objects whose output is a
 pandas DataFrame; :func:`encode` applies a fitted encoder and leaves its input
 unchanged.
@@ -24,6 +27,7 @@ import numpy as np
 import pandas as pd
 from sklearn.compose import ColumnTransformer
 from sklearn.dummy import DummyClassifier
+from sklearn.ensemble import RandomForestClassifier
 from sklearn.impute import SimpleImputer
 from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import Pipeline
@@ -301,4 +305,48 @@ def fit_logistic_baseline(
 
 def predict_logistic_baseline(model: Pipeline, df: pd.DataFrame) -> pd.Series:
     """Predict the risk label for every row of ``df`` with a fitted baseline."""
+    return _as_labels(model.predict(df), df.index)
+
+
+def fit_random_forest(
+    train: pd.DataFrame,
+    label_col: str = config.LABEL_COLUMN,
+    n_estimators: int = config.RF_N_ESTIMATORS,
+    max_depth: int | None = config.RF_MAX_DEPTH,
+    min_samples_leaf: int = config.RF_MIN_SAMPLES_LEAF,
+    class_weight: str | None = config.CLASS_WEIGHT,
+) -> Pipeline:
+    """Fit the Random Forest risk classifier.
+
+    The model is a pipeline of the tree encoder (training-fitted ordinal
+    codes for the categories, numerical features passed through with their
+    missing values) and a ``RandomForestClassifier`` with ``n_estimators``
+    trees, the given ``max_depth`` and ``min_samples_leaf``, and balanced
+    class weights by default. Everything is fitted on the labelled rows of
+    ``train`` only, so the pipeline can be applied unchanged to another
+    frame with :func:`predict_random_forest`.
+    """
+    rows, labels = _labelled(train, label_col)
+    numerical, categorical = feature_columns(rows)
+    model = Pipeline(
+        [
+            ("encode", make_tree_encoder(numerical, categorical)),
+            (
+                "classify",
+                RandomForestClassifier(
+                    n_estimators=n_estimators,
+                    max_depth=max_depth,
+                    min_samples_leaf=min_samples_leaf,
+                    class_weight=class_weight,
+                    n_jobs=config.RF_N_JOBS,
+                    random_state=config.SEED,
+                ),
+            ),
+        ]
+    )
+    return model.fit(rows, labels)
+
+
+def predict_random_forest(model: Pipeline, df: pd.DataFrame) -> pd.Series:
+    """Predict the risk label for every row of ``df`` with a fitted forest."""
     return _as_labels(model.predict(df), df.index)
