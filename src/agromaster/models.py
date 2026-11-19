@@ -17,7 +17,10 @@ to the current price-to-history ratio, and a regularised multinomial logistic
 regression on the linear encoder.
 
 The first main model is a Random Forest on the tree encoder, with balanced
-class weights fitted on the training rows only.
+class weights fitted on the training rows only. The second main model is
+an XGBoost classifier on the same encoder, trained with balanced class
+weights as sample weights and, when a validation frame is given, early
+stopping on the validation loss.
 
 Encoders are scikit-learn ``ColumnTransformer`` objects whose output is a
 pandas DataFrame; :func:`encode` applies a fitted encoder and leaves its input
@@ -37,6 +40,8 @@ from sklearn.preprocessing import (
     OrdinalEncoder,
     StandardScaler,
 )
+from sklearn.utils.class_weight import compute_class_weight
+from xgboost import XGBClassifier
 
 from agromaster import config
 from agromaster.features import predictor_price_columns
@@ -350,3 +355,98 @@ def fit_random_forest(
 def predict_random_forest(model: Pipeline, df: pd.DataFrame) -> pd.Series:
     """Predict the risk label for every row of ``df`` with a fitted forest."""
     return _as_labels(model.predict(df), df.index)
+
+
+def _label_codes(labels: np.ndarray) -> np.ndarray:
+    """Map risk labels to the integer codes XGBoost needs (their position)."""
+    codes = pd.Categorical(labels, categories=config.RISK_LABELS).codes
+    if (codes < 0).any():
+        raise ValueError(f"Labels must be in {config.RISK_LABELS}")
+    return codes.astype(np.int64)
+
+
+def _class_weights(
+    codes: np.ndarray, class_weight: str | None
+) -> dict[int, float]:
+    """Return the per-class weight for each label code seen in training."""
+    present = np.unique(codes)
+    if class_weight is None:
+        return {int(c): 1.0 for c in present}
+    weights = compute_class_weight(class_weight, classes=present, y=codes)
+    return {int(c): float(w) for c, w in zip(present, weights)}
+
+
+def fit_xgboost(
+    train: pd.DataFrame,
+    valid: pd.DataFrame | None = None,
+    label_col: str = config.LABEL_COLUMN,
+    n_estimators: int = config.XGB_N_ESTIMATORS,
+    learning_rate: float = config.XGB_LEARNING_RATE,
+    max_depth: int = config.XGB_MAX_DEPTH,
+    reg_lambda: float = config.XGB_REG_LAMBDA,
+    early_stopping_rounds: int | None = config.XGB_EARLY_STOPPING_ROUNDS,
+    class_weight: str | None = config.CLASS_WEIGHT,
+) -> Pipeline:
+    """Fit the XGBoost risk classifier.
+
+    The model is a pipeline of the tree encoder and an ``XGBClassifier``
+    with up to ``n_estimators`` trees, the given ``learning_rate``,
+    ``max_depth`` and L2 regularisation ``reg_lambda``. The encoder and the
+    class weights are fitted on the labelled rows of ``train`` only; each
+    training row is weighted by its class weight (balanced by default).
+    Every risk class must occur in the training labels.
+
+    When ``valid`` is given, its labelled rows are encoded with the
+    training-fitted encoder, weighted with the training class weights and
+    used for early stopping: boosting stops once the validation loss has not
+    improved for ``early_stopping_rounds`` rounds, and the best iteration is
+    used for prediction. Without ``valid`` all ``n_estimators`` trees are
+    fitted. Apply the pipeline to another frame with
+    :func:`predict_xgboost`.
+    """
+    rows, labels = _labelled(train, label_col)
+    codes = _label_codes(labels)
+    missing = set(range(len(config.RISK_LABELS))) - set(np.unique(codes))
+    if missing:
+        absent = [config.RISK_LABELS[c] for c in sorted(missing)]
+        raise ValueError(f"Training labels have no rows for {absent}")
+    weights = _class_weights(codes, class_weight)
+
+    numerical, categorical = feature_columns(rows)
+    encoder = make_tree_encoder(numerical, categorical).fit(rows)
+    x_train = encode(encoder, rows)
+    fit_kwargs: dict = {
+        "sample_weight": np.array([weights[c] for c in codes]),
+        "verbose": False,
+    }
+    stopping = None
+    if valid is not None:
+        valid_rows, valid_labels = _labelled(valid, label_col)
+        valid_codes = _label_codes(valid_labels)
+        fit_kwargs["eval_set"] = [(encode(encoder, valid_rows), valid_codes)]
+        fit_kwargs["sample_weight_eval_set"] = [
+            np.array([weights.get(c, 1.0) for c in valid_codes])
+        ]
+        stopping = early_stopping_rounds
+
+    classifier = XGBClassifier(
+        n_estimators=n_estimators,
+        learning_rate=learning_rate,
+        max_depth=max_depth,
+        reg_lambda=reg_lambda,
+        objective="multi:softprob",
+        eval_metric=config.XGB_EVAL_METRIC,
+        early_stopping_rounds=stopping,
+        tree_method=config.XGB_TREE_METHOD,
+        n_jobs=config.XGB_N_JOBS,
+        random_state=config.SEED,
+    )
+    classifier.fit(x_train, codes, **fit_kwargs)
+    return Pipeline([("encode", encoder), ("classify", classifier)])
+
+
+def predict_xgboost(model: Pipeline, df: pd.DataFrame) -> pd.Series:
+    """Predict the risk label for every row of ``df`` with a fitted XGBoost."""
+    codes = model.predict(df)
+    labels = np.asarray(config.RISK_LABELS, dtype=object)[codes]
+    return _as_labels(labels, df.index)

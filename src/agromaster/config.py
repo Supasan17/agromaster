@@ -158,3 +158,19 @@ RF_N_ESTIMATORS = 300
 RF_MAX_DEPTH: int | None = 20
 RF_MIN_SAMPLES_LEAF = 5
 RF_N_JOBS = -1
+
+# XGBoost: starting hyperparameters (learning rate, tree depth, number of
+# estimators and regularisation strength are tuned later with randomised
+# search on the chronological CV folds). The number of estimators is an upper
+# bound: when a validation frame is given, boosting stops early once the
+# validation loss has not improved for XGB_EARLY_STOPPING_ROUNDS rounds.
+# Balanced class weights (from the training labels) are passed as sample
+# weights to handle the rarity of the High risk class.
+XGB_N_ESTIMATORS = 1000
+XGB_LEARNING_RATE = 0.05
+XGB_MAX_DEPTH = 6
+XGB_REG_LAMBDA = 1.0
+XGB_EARLY_STOPPING_ROUNDS = 50
+XGB_EVAL_METRIC = "mlogloss"
+XGB_TREE_METHOD = "hist"
+XGB_N_JOBS = -1
