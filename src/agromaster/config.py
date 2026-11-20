@@ -183,3 +183,9 @@ XGB_N_JOBS = -1
 HIGH_RISK_LABEL = "High"
 MACRO_ROW = "Macro"
 METRIC_ZERO_DIVISION = 0.0
+
+# Grouped reports (proposal "Evaluation metrics"): results are reported per
+# commodity and per period, not only as one overall figure. Periods are
+# calendar years of the prediction date by default (a pandas period alias).
+PERIOD_FREQ = "Y"
+PERIOD_COLUMN = "Period"
