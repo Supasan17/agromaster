@@ -174,3 +174,12 @@ XGB_EARLY_STOPPING_ROUNDS = 50
 XGB_EVAL_METRIC = "mlogloss"
 XGB_TREE_METHOD = "hist"
 XGB_N_JOBS = -1
+
+# Evaluation (proposal "Evaluation metrics"): per-class and macro-averaged
+# precision, recall and F1, accuracy and the confusion matrix. Macro F1 and
+# recall of the High risk class are the main comparison measures. A metric
+# whose denominator is zero (for example precision of a class that is never
+# predicted) is reported as this value instead of raising a warning.
+HIGH_RISK_LABEL = "High"
+MACRO_ROW = "Macro"
+METRIC_ZERO_DIVISION = 0.0
