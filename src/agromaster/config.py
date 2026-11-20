@@ -189,3 +189,15 @@ METRIC_ZERO_DIVISION = 0.0
 # calendar years of the prediction date by default (a pandas period alias).
 PERIOD_FREQ = "Y"
 PERIOD_COLUMN = "Period"
+
+# Command-line pipeline (``python -m agromaster <stage>``). Each stage reads
+# the output of the stage before it, so the stages run in this order.
+PIPELINE_STAGES = ["download", "convert", "clean", "features", "train", "evaluate"]
+CLEAN_PARQUET = DATA_PROCESSED / "clean.parquet"
+FEATURES_PARQUET = DATA_PROCESSED / "features.parquet"
+REPORTS = ROOT / "reports"
+# The final models are fitted on the whole development period with label
+# thresholds fitted on that period only, and saved under MODELS.
+THRESHOLDS_FILE = MODELS / "risk_thresholds.parquet"
+MODEL_FILE_TEMPLATE = "{name}.joblib"
+MODEL_NAMES = ["majority", "persistence", "logistic", "random_forest", "xgboost"]
