@@ -58,7 +58,7 @@ def feature_columns(df: pd.DataFrame) -> tuple[list[str], list[str]]:
     forward-filled predictor copies when ``df`` has them, so the models never
     see unfilled target-side prices from aligned data.
     """
-    prices = dict(zip(config.PRICE_FEATURES, predictor_price_columns(df)))
+    prices = dict(zip(config.PRICE_FEATURES, predictor_price_columns(df), strict=True))
     numerical = [prices.get(c, c) for c in config.NUMERICAL_FEATURES]
     return numerical, list(config.CATEGORICAL_FEATURES)
 
@@ -373,7 +373,7 @@ def _class_weights(
     if class_weight is None:
         return {int(c): 1.0 for c in present}
     weights = compute_class_weight(class_weight, classes=present, y=codes)
-    return {int(c): float(w) for c, w in zip(present, weights)}
+    return {int(c): float(w) for c, w in zip(present, weights, strict=True)}
 
 
 def fit_xgboost(

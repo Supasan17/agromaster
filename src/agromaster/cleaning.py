@@ -88,7 +88,7 @@ def standardise_names(
             out[col] = values.astype(object).map(mapping).astype("category")
         else:
             out[col] = values.map(
-                lambda v: standardise_name(str(v), col_aliases) if pd.notna(v) else v
+                lambda v, a=col_aliases: standardise_name(str(v), a) if pd.notna(v) else v
             )
     return out
 
@@ -148,7 +148,7 @@ def align_calendar_days(
     if df.empty:
         out = df[key_cols + [date] + prices].copy()
         out[config.OBSERVED_COLUMN] = pd.Series(dtype=bool)
-        for col, filled in zip(prices, filled_cols):
+        for col, filled in zip(prices, filled_cols, strict=True):
             out[filled] = out[col]
         return out.reset_index(drop=True)
 
@@ -176,7 +176,7 @@ def align_calendar_days(
     out = grid.merge(obs[["_series", date] + prices], on=["_series", date], how="left")
     out[config.OBSERVED_COLUMN] = out[prices].notna().any(axis=1)
     filled = out.groupby("_series", sort=False)[prices].ffill(limit=limit)
-    for col, filled_col in zip(prices, filled_cols):
+    for col, filled_col in zip(prices, filled_cols, strict=True):
         out[filled_col] = filled[col]
 
     if key_cols:

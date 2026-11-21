@@ -22,3 +22,6 @@ tqdm
 
 # Testing
 pytest
+
+# Linting
+ruff

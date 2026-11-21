@@ -64,7 +64,7 @@ def test_spread_ratio_missing_for_non_positive_or_missing_modal() -> None:
 def test_predictor_columns_prefer_filled_copies() -> None:
     df = make_series("2024-01-01", [1000.0])
     assert features.predictor_price_columns(df) == config.PRICE_COLUMNS
-    for col, filled in zip(config.PRICE_COLUMNS, FILLED):
+    for col, filled in zip(config.PRICE_COLUMNS, FILLED, strict=True):
         df[filled] = df[col]
     assert features.predictor_price_columns(df) == FILLED
 

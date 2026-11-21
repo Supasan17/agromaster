@@ -51,7 +51,7 @@ def test_records_per_commodity_sorted() -> None:
 
 def test_records_per_state_drops_unused_categories() -> None:
     out = quality.records_per_state(make_prices())
-    assert dict(zip(out["State"].astype(str), out["records"])) == {"Kerala": 3, "Punjab": 1}
+    assert dict(zip(out["State"].astype(str), out["records"], strict=True)) == {"Kerala": 3, "Punjab": 1}
 
 
 def test_summary_on_empty_frame() -> None:
